@@ -1,6 +1,8 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
+from typing import List, Optional
 
 app = FastAPI()
 
@@ -12,13 +14,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class Talent(BaseModel):
+    id: str
+    name: str
+    role: str
+    avatar: Optional[str] = None
+    location: Optional[str] = None
+    seniority: Optional[str] = None
+
+
+class TalentRequest(BaseModel):
+    email: EmailStr
+    company: Optional[str] = None
+    details: Optional[str] = None
+    to: EmailStr
+    talents: List[Talent]
+
+
 @app.get("/")
 def read_root():
     return {"message": "Hello from FastAPI Backend!"}
 
+
 @app.get("/api/hello")
 def hello():
     return {"message": "Hello from the backend API!"}
+
 
 @app.get("/test")
 def test_database():
@@ -63,6 +85,38 @@ def test_database():
     response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
     
     return response
+
+
+@app.post("/api/talent-request")
+async def talent_request(payload: TalentRequest):
+    """
+    Accept a shortlist request and simulate sending an email to the requested address.
+    In production, wire this up to a real email provider (e.g. SendGrid, Postmark, SES).
+    """
+    # Basic guard
+    if not payload.talents:
+        raise HTTPException(status_code=400, detail="No talents provided")
+
+    # Simulate an email send by printing to logs
+    subject = f"New Team Request from {payload.email}"
+    body_lines = [
+        subject,
+        f"Company: {payload.company or '-'}",
+        f"Details: {payload.details or '-'}",
+        "",
+        "Selected talents:",
+    ]
+    for t in payload.talents:
+        body_lines.append(f" - {t.name} · {t.role} · {t.seniority or ''} · {t.location or ''}")
+    body = "\n".join(body_lines)
+
+    print("================ NEW TALENT REQUEST ================")
+    print("TO:", payload.to)
+    print("FROM:", payload.email)
+    print(body)
+    print("====================================================")
+
+    return {"ok": True, "sent_to": payload.to}
 
 
 if __name__ == "__main__":
